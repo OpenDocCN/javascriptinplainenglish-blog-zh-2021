@@ -1,0 +1,297 @@
+# 2021 年如何用 React 和 ThreeJS / React 三纤开发 Web AR Facefilter
+
+> 原文：<https://javascript.plainenglish.io/how-to-develop-a-web-ar-facefilter-with-react-and-threejs-react-three-fiber-in-2021-4c723b91294b?source=collection_archive---------9----------------------->
+
+为了🧙的三周年纪念🏼‍♂️30 级巫师我们希望建立一些与我们的工作、品牌和兴趣相关的东西。我们最终为 Web AR 或 Web XR 创建了一个类似 facefilter 的 Snapchat。
+
+你可以在这里试用最终产品: [Facefilter 演示](https://level30wizards.com/experiments/facefilter/)
+
+# 无耻的插头
+
+> *嘿，你正在为一个客户或项目建立一个 Facefilter 吗？我们很乐意帮忙。*
+
+[发送邮件！](mailto:merlin@level30wizards.com)
+
+# 介绍
+
+移动网络浏览发展迅速。我们能够从 NFC 读卡器、存储器和摄像头获取数据。遗憾的是，截至目前，我们不允许在 iPhones 或 iPads 上使用 ARKit。
+
+有很多很棒的图书馆，比如第八墙或 Zappar，但它们通常价格不菲。幸运的是，许多聪明人建立了能够从 2D 屏幕上识别人脸的神经网络。
+
+WebAR 允许您利用计算机或数据可视化，除了默认的 web 浏览器之外，无需下载应用程序。Web AR 可以使用 SLAM(同步定位和绘图)和图像识别技术来数字化地可视化您的内容。由于它仍然是一个网页，我们可以在 AR 体验中添加各种 web 特性和功能。这在网络上打开了大量的机会。
+
+增强现实将是对许多现有网页的有价值的补充。例如，它可以帮助人们在教育网站上学习，或者允许潜在买家在购物时可视化家中的物品。
+
+# 目标
+
+目标是在我们的脸上投射一个 3D 模型。
+
+![](img/e2f9a200f78867725e4fea80072141e3.png)
+
+# 工具
+
+*   [GSAP](https://greensock.com/?ref=68708)
+*   [Three.js](https://threejs.org/)
+*   [反应三纤维](https://docs.pmnd.rs/react-three-fiber/getting-started/introduction)
+*   [吉莉兹](https://jeeliz.com/)
+
+# 原型免责声明
+
+我们做的这个实验是一个完整的原型。我们不建议您在生产环境中使用它。这个例子需要大量的调整才能在生产中使用。
+
+# 代码:简介
+
+在我们展示相机之前，我们需要一些时间来加载 3D 模型并计算一些位置。这就是为什么我们选择了一个介绍屏幕来增加一些悬念。
+
+> *漂亮的波浪文字来自以前的教程！* [*波浪形文本动画使用 React 钩子与 GSAP v3*](https://webanimation.blog/blog/wavy-text-animation-using-react-hooks-with-gsap-v3/)
+
+```
+import gsap from 'gsap';
+import React, { useEffect } from 'react';export const Intro = () => {
+  useEffect(() => {
+    gsap.set('.wavy', { perspective: 400 });const sequence = (id, reverse) => {
+      const tl = gsap.timeline({ delay: 0.5 });tl.from(`.wavy[data-id="${id}"]`, {
+        duration: 0.5,
+        autoAlpha: 0,
+        ease: 'back',
+        stagger: 1,
+      })
+        .from(`.wavy[data-id="${id}"] [data-letter]`, {
+          duration: 0.5,
+          autoAlpha: 0,
+          scale: 1,
+          y: -30,
+          rotationX: -90,
+          transformOrigin: '0% 50% -50',
+          ease: 'back',
+          stagger: 0.025,
+        })
+        .to(`.wavy[data-id="${id}"] [data-letter]`, {
+          duration: 0.5,
+          delay: 1.25,
+          autoAlpha: 0,
+          scale: 1,
+          y: -30,
+          rotationX: -90,
+          transformOrigin: '0% 50% -50',
+          ease: 'back',
+          stagger: 0.025,
+        })
+        .to(`.wavy[data-id="${id}"]`, {
+          duration: 0.25,
+          autoAlpha: 0,
+          ease: 'back',
+          stagger: 1,
+        });return tl;
+    };const tl = gsap.timeline();tl.add(sequence('one'))
+      .add(sequence('two'))
+      .add(sequence('three'))
+      .to('.intro', {
+        duration: 1,
+        autoAlpha: 0,
+      });tl.timeScale(1.2);tl.play();
+    return () => {
+      tl.kill();
+    };
+  }, []);return (
+    <div className="intro">
+      <AnimatedText id="one" text={'Level30Wizards Presents...'} />
+      <AnimatedText id="two" text={'Are you a true wizard?'} />
+      <AnimatedText id="three" text={"Let's find out!"} />
+      <img
+        src="[https://level30wizards.com/images/branded/brand-image-6.png](https://level30wizards.com/images/branded/brand-image-6.png)"
+        alt="Dragon"
+        className="dragon"
+      />
+      <a href="[https://level30wizards.com](https://level30wizards.com)" aria-label="level30wizards">
+        <img
+          src="[https://level30wizards.com/images/svg/logo.svg](https://level30wizards.com/images/svg/logo.svg)"
+          alt="Level30Wizards"
+          className="logo"
+        />
+      </a>
+    </div>
+  );
+};
+```
+
+# 巫师帽
+
+为了加载 3D 模型，我们使用了 [GLTFJSX](https://www.npmjs.com/package/gltfjsx) 。
+
+```
+npx gltfjsx model.gltf -t
+```
+
+这导致了以下结果:
+
+```
+// [@ts](http://twitter.com/ts)-nocheck
+/*
+Auto-generated by: [https://github.com/pmndrs/gltfjsx](https://github.com/pmndrs/gltfjsx)
+author: Paulina ([https://sketchfab.com/Byakko](https://sketchfab.com/Byakko))
+license: CC-BY-NC-4.0 ([http://creativecommons.org/licenses/by-nc/4.0/](http://creativecommons.org/licenses/by-nc/4.0/))
+source: [https://sketchfab.com/3d-models/wizards-hat-68a9fb2dbd8442a5bacf9c0141320308](https://sketchfab.com/3d-models/wizards-hat-68a9fb2dbd8442a5bacf9c0141320308)
+title: Wizard's hat
+*/import { useGLTF } from '[@react](http://twitter.com/react)-three/drei';
+import React, { useRef } from 'react';export default function Model(props) {
+  const group = useRef();
+  const { nodes, materials } = useGLTF('/models/wizards_hat/scene.gltf');
+  return (
+    <group ref={group} {...props} dispose={null}>
+      <group rotation={[-Math.PI / 2, 0, 0]}>
+        <group rotation={[Math.PI / 2, 0, 0]}>
+          <mesh
+            geometry={nodes.defaultMaterial.geometry}
+            material={nodes.defaultMaterial.material}
+          />
+          <mesh
+            geometry={nodes.defaultMaterial_1.geometry}
+            material={nodes.defaultMaterial_1.material}
+          />
+          <mesh
+            geometry={nodes.defaultMaterial_2.geometry}
+            material={nodes.defaultMaterial_2.material}
+          />
+          <mesh
+            geometry={nodes.defaultMaterial_3.geometry}
+            material={nodes.defaultMaterial_3.material}
+          />
+          <mesh
+            geometry={nodes.defaultMaterial_4.geometry}
+            material={nodes.defaultMaterial_4.material}
+          />
+          <mesh
+            geometry={nodes.defaultMaterial_5.geometry}
+            material={nodes.defaultMaterial_5.material}
+          />
+        </group>
+      </group>
+    </group>
+  );
+}useGLTF.preload('/models/wizards_hat/scene.gltf');
+```
+
+# Web AR 库
+
+我们使用了 [Jeeliz R3F 演示](https://github.com/jeeliz/jeelizFaceFilter/tree/master/reactThreeFiberDemo)，并将其与来自他们 [Matrix 演示](https://github.com/jeeliz/jeelizFaceFilter/tree/master/demos/threejs/matrix)的一些逻辑相结合。如果你想，毫无羞耻地复制粘贴这篇博客来创造一个工作产品…你运气不好。参考演示并自己动手修改，你可能会学到更多。
+
+完成大部分工作的结果代码看起来有点像这样:
+
+```
+const FaceFollower = props => {
+  const objRef = useRef();
+  useEffect(() => {
+    const threeObject3D = objRef.current;
+    _faceFollowers[props.faceIndex] = threeObject3D;
+  });return (
+    <object3D ref={objRef}>
+      <Suspense fallback={null}>
+        <WizardsHat
+          rotation={[0, -Math.PI, 0]}
+          position={[0, 1.825, 0]}
+          scale={[1.5, 1.5, 1.5]}
+          renderOrder={2}
+        />
+        <Head position={[0, -0.1435, 0]} scale={[1.125, 1, 1.125]} />
+      </Suspense>
+    </object3D>
+  );
+};
+```
+
+我们使用了一个人类头部的模型，并使用了一个带有`colorWrite`和`renderOrder`的技巧。我们刚用了一些 SketchFab 的人头，低聚的也可以。
+
+```
+const hiderMat = new THREE.MeshPhongMaterial({
+  attach: 'material',
+  color: 'hotpink',
+  colorWrite: false,
+  renderOrder: 1,
+});
+```
+
+如果我们不这样做，当你大笑时，帽子会夹住你的脸，因为 web ar 体验太棒了。
+
+# 快照！
+
+如果你在做和平手势和像鸭子一样舔嘴唇的时候不能拍照，那就不是面部过滤器了。
+
+对于我们的下一个技巧，我使用了 3 个画布元素。是的，我们知道。
+
+我们将相机画布、包含“帽子”和“头”的画布以及我们投影徽标的画布结合在一起。
+
+```
+const faceFilterCanvasRef = useRef(null);
+const canvasRef = useRef(null);
+const pictureCanvasRef = useRef(null);
+const logoCanvasRef = useRef(null);const snapshot = useCallback(() => {
+  const canvas = pictureCanvasRef.current;
+  canvas.getContext('2d').drawImage(faceFilterCanvasRef.current, 0, 0);const img = new Image();
+  img.src = '/images/logo.png';img.addEventListener('error', e => {
+    console.error(e);
+  });
+  img.addEventListener('load', e => {
+    logoCanvasRef.current
+      .getContext('2d')
+      .drawImage(
+        img,
+        sizing.width - (144 + 24),
+        sizing.height - (42.38 + 24),
+        144,
+        42.38
+      );mergeImages([
+      canvas.toDataURL('image/png'),
+      canvasRef.current.toDataURL('image/png'),
+      logoCanvasRef.current.toDataURL('image/png'),
+    ]).then(b64 => {
+      setDownloadUrl(b64);
+      setShareData(b64);
+    });
+  });
+}, []);
+```
+
+# 显示最终图像
+
+为了下载和分享你的照片，我们尝试实现本地共享 API。但是，该 API 要求我们保存图像，我们不喜欢这样，因为这是一个隐私问题。请考虑到这一点，如果你自己建立这个。使用令牌或某种方式来验证查看图像的用户是来自共享链接还是当前用户。
+
+```
+<div
+  style={{
+    display: shareData ? 'block' : 'none',
+    position: 'fixed',
+    zIndex: 3,
+    borderRadius: '50%',
+    overflow: 'hidden',
+  }}
+>
+  <img
+    style={{
+      position: 'fixed',
+      zIndex: 4,
+      width: 'auto',
+      height: '100%',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%,-50%)',
+    }}
+    src={shareData}
+    alt="generated"
+  />
+</div>
+```
+
+就这些了，谢谢。
+
+![](img/51f0d88fea5463f39712c4264f019776.png)
+
+## PS。
+
+[查看实际例子！我们正在🧙研究一些神奇的东西🏼‍♂️30 级巫师](https://level30wizards.com/experiments/facefilter)，一定要关注我们的社交活动，留意新版本。
+
+## 感谢阅读！
+
+我们希望您从这篇文章中学到了一些关于 web 浏览器中增强现实的知识。如果你使用这项技术，请负责任地这样做。
+
+*原载于*[*https://web animation . blog*](https://webanimation.blog/blog/how-to-develop-web-ar-facefilter-react-threejs/)*。*
